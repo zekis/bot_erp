@@ -45,15 +45,15 @@ async def heartbeat_loop():
     # register_self()
 
     while True:
-        await asyncio.sleep(30.0)
         heartbeat()
+        await asyncio.sleep(30.0)
 
 
 async def main():
     script_path = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_path)
 
-    logger = bot_logging.logging.getLogger("Bot_365")
+    logger = bot_logging.logging.getLogger("Bot_ERP")
     logger.addHandler(bot_logging.file_handler)
     logger.info(f"Init Bot")
 

@@ -18,9 +18,10 @@ from common.bot_comms import (
 from common.bot_forward import Forward
 
 
-from loaders.researcher import GoogleSearch
+from loaders.erp_api import ERPGETLIST, ERPGETDOC, ERPGETFIELDS
 
 from langchain.chat_models import ChatOpenAI
+from langchain.llms import OpenAI
 from langchain.agents import initialize_agent
 from langchain.agents import AgentType
 from langchain.agents import load_tools, Tool
@@ -54,12 +55,23 @@ class aiBot:
             )
             self.memory.buffer.clear()
 
+            # self.agent_executor = initialize_agent(
+            #     tools=self.tools,
+            #     llm=self.llm,
+            #     agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+            #     verbose=True,
+            #     max_iterations=5,
+            # )
             self.agent_executor = initialize_agent(
                 tools=self.tools,
                 llm=self.llm,
-                agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+                agent=AgentType.OPENAI_FUNCTIONS,
                 verbose=True,
                 max_iterations=5,
+                agent_kwargs={
+                    "memory_prompts": [self.chat_history],
+                    "input_variables": ["input", "agent_scratchpad", "chat_history"],
+                },
             )
             self.initialised = True
 
@@ -75,8 +87,9 @@ class aiBot:
                 self.credentials = incoming_credentials
                 bot_config.OPENAI_API_KEY = self.get_credential("openai_api")
                 bot_config.FRIENDLY_NAME = self.get_credential("user_name")
-                bot_config.GOOGLE_API_KEY = self.get_credential("google_api_key")
-                bot_config.GOOGLE_CSE_ID = self.get_credential("google_cse_id")
+                bot_config.ERP_URL = self.get_credential("erp_url")
+                bot_config.ERP_API_KEY = self.get_credential("erp_api_key")
+                bot_config.ERP_API_SECRET = self.get_credential("erp_api_secret")
                 self.bot_init()
 
             if prompt == "credential_update":
@@ -105,7 +118,7 @@ class aiBot:
     def process_model(self, question):
         current_date_time = datetime.now()
         # inital_prompt = f"Previous conversation: {self.memory.buffer_as_str}" + f''', Thinking step by step and With only the tools provided and with the current date and time of {current_date_time} help the human with the following request, Request: {question} '''
-        inital_prompt = f"""You are a researcher that uses google to find information. Thinking step by step, With only the tools provided (If a tool isnt available, use the FORWARD tool) and with the current date and time of {current_date_time} help the human with the following request, Request: {question}"""
+        inital_prompt = f"""You are a researcher that uses frappe ERPnext Api to find information. Only consider Previous response if it is relevent, Ignore previous errors and failures, Thinking step by step, With only the tools provided (If a tool isnt available, use the FORWARD tool) and with the current date and time of {current_date_time} help the human with the following request, Request: {question}"""
         response = self.agent_executor.run(
             input=inital_prompt, callbacks=[self.handler]
         )
@@ -116,11 +129,15 @@ class aiBot:
         from_bot_to_bot_manager("heartbeat", os.getpid())
 
     def load_tools(self, llm) -> list():
-        tools = load_tools(
-            ["human"], input_func=get_input, prompt_func=send_prompt, llm=llm
-        )
+        # tools = load_tools(
+        #     ["human"], input_func=get_input, prompt_func=send_prompt, llm=llm
+        # )
+        # tools = load_tools()
+        tools = []
 
-        tools.append(GoogleSearch())
+        tools.append(ERPGETLIST())
+        tools.append(ERPGETDOC())
+        tools.append(ERPGETFIELDS())
         tools.append(Forward())
 
         return tools
